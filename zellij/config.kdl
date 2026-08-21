@@ -1,0 +1,20 @@
+// Rebind zellij's Ctrl+* keys to Alt+*, freeing all Ctrl combos for helix.
+// Colliding Alt defaults are unbound first (their actions stay reachable via modes).
+keybinds {
+    shared_except "locked" {
+        unbind "Alt p" "Alt n" "Alt o" "Alt h"
+    }
+    normal {
+        unbind "Ctrl g" "Ctrl q" "Ctrl p" "Ctrl n" "Ctrl s" "Ctrl o" "Ctrl t" "Ctrl h" "Ctrl b"
+        bind "Alt g" { SwitchToMode "Locked"; }
+        bind "Alt q" { Quit; }
+        bind "Alt p" { SwitchToMode "Pane"; }
+        bind "Alt n" { SwitchToMode "Resize"; }
+        bind "Alt s" { SwitchToMode "Scroll"; }
+        bind "Alt o" { SwitchToMode "Session"; }
+        bind "Alt t" { SwitchToMode "Tab"; }
+        bind "Alt h" { SwitchToMode "Move"; }
+        bind "Alt b" { SwitchToMode "Tmux"; }
+    }
+}
+theme "ayu-dark"

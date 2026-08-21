@@ -1,2 +1,9 @@
-cogs
-runtime
+# Track only helix and zellij configs
+/*
+!/.gitignore
+!/helix/
+!/zellij/
+
+# junk
+*.bak
+
