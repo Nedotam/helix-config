@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""Helix <-> roslyn-language-server glue.
+
+The official roslyn-language-server dotnet tool expects the editor to send
+its custom 'solution/open' / 'project/open' notifications (like the VS Code
+extension does). Helix can't do that, so this shim:
+  - spawns the official tool,
+  - watches the client's 'initialize' params for rootUri,
+  - injects 'solution/open' (or 'project/open') right after 'initialized'.
+
+Set ROSLYN_LS_HELIX_LOG=/path/to/file to mirror all traffic.
+"""
+import json
+import os
+import subprocess
+import sys
+import threading
+import urllib.parse
+import urllib.request
+
+TOOL = os.path.expanduser("~/.dotnet/tools/roslyn-language-server")
+LOG_PATH = os.environ.get(
+    "ROSLYN_LS_HELIX_LOG",
+    os.path.expanduser("~/.cache/roslyn-ls-helix.log"),
+)
+log_file = open(LOG_PATH, "a", buffering=1) if LOG_PATH else None
+
+
+def log(msg):
+    if log_file:
+        import time
+
+        log_file.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+
+
+def read_message(stream):
+    headers = {}
+    while True:
+        line = stream.readline()
+        if not line:
+            return None
+        if line in (b"\r\n", b"\n"):
+            break
+        k, _, v = line.decode("utf-8", "replace").partition(":")
+        headers[k.strip().lower()] = v.strip()
+    n = int(headers["content-length"])
+    body = b""
+    while len(body) < n:
+        chunk = stream.read(n - len(body))
+        if not chunk:
+            return None
+        body += chunk
+    return body
+
+
+def frame(body):
+    return b"Content-Length: %d\r\n\r\n" % len(body) + body
+
+
+def find_solution(start):
+    """Walk up from a file/dir looking for a top-level .sln/.slnx first,
+    then any .csproj. Bounded to the user's home subtree."""
+    p = os.path.abspath(start)
+    if os.path.isdir(p):
+        chain = [p]
+    else:
+        chain = []
+        cur = os.path.dirname(p)
+        while True:
+            chain.append(cur)
+            parent = os.path.dirname(cur)
+            if parent == cur:
+                break
+            cur = parent
+    home = os.path.expanduser("~")
+    if any(c == home for c in chain):
+        chain = [c for c in chain if c.startswith(home)]
+    chain = chain[:12]
+    for c in chain:
+        try:
+            slns = [e for e in sorted(os.listdir(c)) if e.endswith((".sln", ".slnx"))]
+        except OSError:
+            continue
+        if slns:
+            return os.path.join(c, slns[0]), "solution/open"
+    for c in chain:
+        try:
+            projs = [e for e in sorted(os.listdir(c)) if e.endswith(".csproj")]
+        except OSError:
+            continue
+        if projs:
+            return os.path.join(c, projs[0]), "project/open"
+    return None, None
+
+
+def inject_target(target, m, why=""):
+    log(f"shim: injecting {m} {target} {why}".rstrip())
+    inject = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "method": m,
+            "params": {m.split("/")[0]: target},
+        }
+    ).encode()
+    send_to_server(inject)
+
+
+server = subprocess.Popen(
+    [TOOL, "--stdio"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=sys.stderr,
+)
+
+server_in = server.stdin
+client_out = sys.stdout.buffer
+state = {"root": None, "target": None, "method": None, "injected": False}
+
+
+def send_to_server(body):
+    server_in.write(frame(body))
+    server_in.flush()
+
+
+def client_to_server():
+    """Client -> server pump with initialize/initialized interception."""
+    while True:
+        body = read_message(sys.stdin.buffer)
+        if body is None:
+            log("shim: client stdin closed")
+            try:
+                server_in.close()
+            except Exception:
+                pass
+            return
+        try:
+            msg = json.loads(body)
+            method = msg.get("method")
+            if method == "initialize":
+                root_uri = (msg.get("params") or {}).get("rootUri")
+                if root_uri and root_uri.startswith("file://"):
+                    state["root"] = urllib.request.url2pathname(
+                        urllib.parse.urlparse(root_uri).path
+                    )
+                log(f"shim: initialize root={state['root']}")
+            elif method == "initialized" and not state["injected"]:
+                if state["root"]:
+                    target, m = find_solution(state["root"])
+                    if target:
+                        state["injected"] = True
+                        inject_target(target, m)
+            elif method == "textDocument/didOpen" and not state["injected"]:
+                state["injected"] = True
+                uri = ((msg.get("params") or {}).get("textDocument") or {}).get("uri")
+                log(f"shim: didOpen fallback uri={uri}")
+                if uri and uri.startswith("file://"):
+                    p = urllib.request.url2pathname(urllib.parse.urlparse(uri).path)
+                    target, m = find_solution(p)
+                    if target:
+                        inject_target(target, m, "(from didOpen)")
+        except Exception as e:
+            log(f"shim: c2s parse skipped ({e})")
+        send_to_server(body)
+
+
+def server_to_client():
+    """Server -> client pump."""
+    while True:
+        body = read_message(server.stdout)
+        if body is None:
+            log("shim: server stdout closed")
+            try:
+                client_out.close()
+            except Exception:
+                pass
+            return
+        client_out.write(frame(body))
+        client_out.flush()
+
+
+t = threading.Thread(target=server_to_client, daemon=True)
+t.start()
+client_to_server()
+t.join(timeout=5)
