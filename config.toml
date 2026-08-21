@@ -1,0 +1,87 @@
+theme = "akari-night" #"github_dark" #"github_light" #"ayu_light"
+
+[editor]
+cursorline = true
+color-modes = true
+auto-pairs = true
+true-color = true
+mouse = false
+scrolloff = 10
+bufferline = "multiple"
+end-of-line-diagnostics = "hint"
+idle-timeout = 50
+preview-completion-insert = false
+popup-border = "all"
+completion-timeout = 50
+gutters = ["diff", "diagnostics", "line-numbers", "spacer"]
+
+        
+[editor.inline-diagnostics]
+cursor-line = "hint"
+
+[editor.cursor-shape]
+insert = "bar"
+normal = "block"
+select = "underline"
+
+[editor.indent-guides]
+render = true
+character = "⸽" # Some characters that work well: "▏", "┆", "┊", "⸽"
+skip-levels = 1
+
+[editor.statusline]
+left = ["mode", "spinner"]
+center = ["separator",
+          "file-name",
+          "version-control",
+          "file-modification-indicator"]
+right = ["position", "file-type", "workspace-diagnostics"]
+separator = "│"
+mode.normal = "NORMAL"
+mode.insert = "INSERT"
+mode.select = "SELECT"
+diagnostics = ["warning", "error"]
+workspace-diagnostics = ["warning", "error"]
+     
+[keys.normal]
+"%" = "match_brackets"
+C-a = "select_all"
+"*" = ["move_char_right", "move_prev_word_start", "move_next_word_end", "search_selection", "search_next"]
+"#" = ["move_char_right", "move_prev_word_start", "move_next_word_end", "search_selection", "search_prev"]
+"$" = "goto_line_end"
+0 = "goto_line_start"
+G = "goto_file_end"
+C-x = ":buffer-close!"
+C-p = ":open ~/.config/helix/config.toml"
+C-o = ":config-reload"
+tab = "indent"
+S-tab = "unindent"
+
+C-g = [":new", ":insert-output lazygit", ":buffer-close!", ":redraw", ":rla"]
+C-e = [
+  ':sh rm -f /tmp/unique-file',
+  ':insert-output yazi %{buffer_name} --chooser-file=/tmp/unique-file',
+  ':insert-output echo "\x1b[?1049h\x1b[?2004h" > /dev/tty',
+  ':open %sh{cat /tmp/unique-file}',
+  ':redraw',
+]
+
+[keys.select]
+i = "select_textobject_inner"
+a = "select_textobject_around"
+tab = "indent"
+S-tab = "unindent"
+"C-/" = "toggle_comments"
+"%" = "match_brackets"
+C-a = "select_all"
+
+"*" = ["move_char_right", "move_prev_word_start", "move_next_word_end", "search_selection", "extend_search_next"]
+"#" = ["move_char_right", "move_prev_word_start", "move_next_word_end", "search_selection", "extend_search_prev"]
+[keys.insert]
+S-tab = "unindent"
+C-space = "completion"
+"C-/" = "toggle_comments"
+
+[keys.normal.space]
+l = ":toggle lsp.display-inlay-hints"
+p = ":trail-open"
