@@ -4,6 +4,14 @@
 !/helix/
 !/zellij/
 
+# symlinks so helix finds configs at ~/.config/helix
+!/config.toml
+!/languages.toml
+!/init.scm
+!/helix.scm
+!/themes
+!/scripts
+
 # junk
 *.bak
 
