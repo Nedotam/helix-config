@@ -2,14 +2,16 @@
 name = "scheme"
 language-servers = ["steel-lsp"]
 
+[language-server.csharp]
+command = "csharp-language-server"
+
 [[language]]
 name = "c-sharp"
 roots = ["*.sln", "*.slnx", "*.csproj", "global.json"]
 language-servers = ["roslyn"]
-formatter = { command = "csharpier", args = ["format", "--write-stdout"] }
 
 [language-server.roslyn]
-command = "roslyn-ls-helix"
+command = "$HOME/.config/helix/scripts/roslyn-ls-helix"
 args = []
 timeout = 60
 

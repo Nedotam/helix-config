@@ -1,0 +1,30 @@
+#!/bin/sh
+# usage: dotnet-picker [buffer_name]
+start=${1:-}
+[ -n "$start" ] && [ -f "$start" ] && start=$(dirname "$start")
+root=$(cd "${start:-.}" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null)
+root=${root:-$PWD}
+
+pick=$(fd -e slnx -e sln -e csproj . "$root" | fzf)
+[ -n "$pick" ] || exit 0
+
+case "$pick" in
+    *.csproj) flag=--project ;;
+    *)        flag=-s ;;
+esac
+
+# Preferred: zellij floating pane -> own PTY, overlays helix, closes on exit
+if [ -n "$ZELLIJ" ] && command -v zellij >/dev/null 2>&1; then
+    exec zellij run --close-on-exit --direction right --name lazydotnet --cwd "$root" -- lazydotnet "$flag" "$pick"
+fi
+
+# Next: dedicated Windows Terminal tab -> zero interference with helix's screen
+if command -v wt.exe >/dev/null 2>&1 && [ -n "$WT_SESSION" ]; then
+    lazy_bin=$(command -v lazydotnet)
+    exec wt.exe -w 0 nt --title lazydotnet wsl.exe -u root --cd "$root" -- "$lazy_bin" "$flag" "$pick"
+fi
+
+# Fallback: embed, but hand over a clean tty first
+printf '\033[<u' >/dev/tty 2>/dev/null                                # pop kitty keyboard protocol
+printf '\033[?1000l\033[?1002l\033[?1006l' >/dev/tty 2>/dev/null      # mouse reporting off
+exec lazydotnet "$flag" "$pick" </dev/tty >/dev/tty 2>&1

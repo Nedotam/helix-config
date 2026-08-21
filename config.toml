@@ -56,8 +56,15 @@ C-p = ":open ~/.config/helix/config.toml"
 C-o = ":config-reload"
 tab = "indent"
 S-tab = "unindent"
-
+"C-/" = "toggle_comments"
 C-g = [":new", ":insert-output lazygit", ":buffer-close!", ":redraw", ":rla"]
+C-d = [
+  ':new',
+  ':insert-output $HOME/.config/helix/scripts/dotnet-picker %{buffer_name}',
+  ':insert-output echo "\x1b[?1049h\x1b[?2004h" > /dev/tty',
+  ':buffer-close!',
+  ':redraw',
+]
 C-e = [
   ':sh rm -f /tmp/unique-file',
   ':insert-output yazi %{buffer_name} --chooser-file=/tmp/unique-file',
